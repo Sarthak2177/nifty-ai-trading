@@ -1,0 +1,98 @@
+# ============================================================
+# CI/CD Pipeline — AI Trading Signal Generator
+# ============================================================
+# Triggers automatically when you push code to GitHub.
+# Runs all 4 ML phases in order and saves outputs as artifacts.
+# ============================================================
+
+name: ML Training Pipeline
+
+on:
+  push:
+    branches: [ main ]          # runs on every push to main
+  pull_request:
+    branches: [ main ]          # runs on every pull request
+  schedule:
+    - cron: '0 2 * * 1'        # runs every Monday at 2AM (weekly retrain)
+  workflow_dispatch:             # allows manual trigger from GitHub UI
+
+jobs:
+  ml-pipeline:
+    runs-on: ubuntu-latest
+
+    steps:
+      # ── Step 1: Checkout your code ──
+      - name: Checkout Repository
+        uses: actions/checkout@v3
+
+      # ── Step 2: Setup Python ──
+      - name: Setup Python 3.10
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      # ── Step 3: Cache pip packages (speeds up future runs) ──
+      - name: Cache pip dependencies
+        uses: actions/cache@v3
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
+      # ── Step 4: Install dependencies ──
+      - name: Install Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      # ── Step 5: Run Phase 1 — Data Pipeline ──
+      - name: Phase 1 - Feature Engineering
+        run: python phase1_data_pipeline.py
+
+      # ── Step 6: Run Phase 2 — Label Generation ──
+      - name: Phase 2 - Label Generation
+        run: python phase2_labels.py
+
+      # ── Step 7: Run Phase 3 — Model Training ──
+      - name: Phase 3 - Train XGBoost + LSTM
+        run: python phase3_training.py
+
+      # ── Step 8: Run Phase 4 — Ensemble + SHAP + Backtest ──
+      - name: Phase 4 - Ensemble + SHAP + Backtest
+        run: python phase4_ensemble_shap.py
+
+      # ── Step 9: Run Tests ──
+      - name: Run Tests
+        run: python test_pipeline.py
+
+      # ── Step 10: Upload outputs as artifacts ──
+      # These are downloadable from GitHub after the run
+      - name: Upload Signal Snapshot
+        uses: actions/upload-artifact@v3
+        with:
+          name: signal-outputs
+          path: |
+            outputs/signal_snapshot.csv
+            outputs/*.png
+          retention-days: 30
+
+      - name: Upload Trained Models
+        uses: actions/upload-artifact@v3
+        with:
+          name: trained-models
+          path: models/
+          retention-days: 30
+
+      # ── Step 11: Post summary to GitHub ──
+      - name: Post Pipeline Summary
+        run: |
+          echo "## ML Pipeline Results" >> $GITHUB_STEP_SUMMARY
+          echo "✅ All 4 phases completed successfully" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Signal Snapshot" >> $GITHUB_STEP_SUMMARY
+          python -c "
+          import pandas as pd
+          df = pd.read_csv('outputs/signal_snapshot.csv')
+          print(df[['Ticker','Signal','Confidence','Strategy_Return','Sharpe']].to_markdown(index=False))
+          " >> $GITHUB_STEP_SUMMARY
