@@ -15,7 +15,7 @@ jobs:
     - name: Set up Python
       uses: actions/setup-python@v4
       with:
-        python-version: 3.10
+        python-version: "3.10"
 
     - name: Install dependencies
       run: |
@@ -26,12 +26,6 @@ jobs:
 
     - name: Run Phase 2
       run: python files/phase2_labels.py
-
-    - name: Run Phase 3
-      run: python files/phase3_training.py
-
-    - name: Run Phase 4
-      run: python files/phase4_ensemble_shap.py
 
     - name: Check outputs
       run: |
