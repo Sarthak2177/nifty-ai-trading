@@ -12,7 +12,7 @@ import os
 import warnings
 warnings.filterwarnings("ignore")
 
-DATA_SRC   = r"archive"
+DATA_SRC   = r"data"
 DATA_DIR   = "data"
 os.makedirs(DATA_DIR, exist_ok=True)
 
